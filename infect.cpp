@@ -391,13 +391,13 @@ public:
             push edx                    ; file name
             call [ebx]                  ; call 'CreateFileA'
             mov esp, ebx
-            ; Now the Stack looks like this, we need to restore it with 'pop':
+                                        ; Now the Stack looks like this, we need to restore it with 'pop':
             pop eax                     ; [esp]:        addr of func 'CreateFileA'
             pop eax                     ; [esp + 4]:    addr of loaded dll addr
             pop eax                     ; [esp + 8]:    addr of func 'LoadLibraryExA'
             pop eax                     ; [esp + 12]:   addr of func 'GetProcAddress'
             pop eax                     ; [esp + 16]:   addr of base dll addr
-            ; above all poped, return address left in the stack
+                                        ; above all poped, return address left in the stack
             pop edi                     ; get the return address
             sub edi, 5                  ; sub the bias of 'call' command ('call' 1 byte, address 4 bytes)
 
